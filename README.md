@@ -1,2 +1,2 @@
-# GravityGame
+# Gravity
 Gravity Game (SDL2)
