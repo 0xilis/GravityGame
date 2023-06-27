@@ -44,7 +44,7 @@ PlayerPos playerPosition;
 int check_platform_collision(void) {
     /* Check for collisions with platform */
     for (int i = 0; i < platformCount; i++) {
-        if (rect.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y && rect.x + PLAYER_WIDTH >= currentZoneDisplay[i].x && rect.x <= currentZoneDisplay[i].x + currentZone[i].w && rect.y < (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) {
+        if (rect.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y && rect.x + PLAYER_WIDTH >= currentZoneDisplay[i].x && rect.x <= currentZoneDisplay[i].x + currentZone[i].w && rect.y <= (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) {
 	    return 1;
         }
     }
@@ -54,7 +54,7 @@ int check_platform_collision(void) {
 int colliding_platform(void) {
     /* Check for collisions with platform */
     for (int i = 0; i < platformCount; i++) {
-        if (rect.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y && rect.x + PLAYER_WIDTH >= currentZoneDisplay[i].x && rect.x <= currentZoneDisplay[i].x + currentZone[i].w && rect.y < (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) {
+        if (rect.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y && rect.x + PLAYER_WIDTH >= currentZoneDisplay[i].x && rect.x <= currentZoneDisplay[i].x + currentZone[i].w && rect.y <= (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) {
 	    return i;
         }
     }
@@ -64,7 +64,7 @@ int colliding_platform(void) {
 collision_type get_collision_type(void) {
     /* Get collision type for platform */
     for (int i = 0; i < platformCount; i++) {
-        if (rect.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y && rect.x + PLAYER_WIDTH >= currentZoneDisplay[i].x && rect.x <= currentZoneDisplay[i].x + currentZone[i].w && rect.y < (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) {
+        if (rect.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y && rect.x + PLAYER_WIDTH >= currentZoneDisplay[i].x && rect.x <= currentZoneDisplay[i].x + currentZone[i].w && rect.y <= (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) {
             if (rect.y < (currentZoneDisplay[i].y - (currentZoneDisplay[i].h / 2))) {
 	        return COLLISION_IS_TOUCHING_UP;
             } else {
@@ -107,7 +107,10 @@ void handle_events(void) {
     }
     if (keys[SDL_SCANCODE_UP]) {
         if (check_platform_collision()) {
-            isJumping = 1;
+            if (!isJumping) {
+                isJumping = 1;
+                jump_sound();
+            }
         }
         if (isJumping) {
             if (!didHitMaxHeight) {
@@ -137,7 +140,6 @@ void handle_events(void) {
     if (event.type == SDL_QUIT) {
         running = 0;
     } else if (event.type == SDL_KEYDOWN) {
-	int keyCode = event.key.keysym.sym;
         const char *key = SDL_GetKeyName(event.key.keysym.sym);
         if (strcmp(key,"P") == 0) {
             /* Flip Gravity */
@@ -145,10 +147,6 @@ void handle_events(void) {
             gravity = GRAVITY - 3;
             /* Sub 1 bc dump mitigation :P */
             rect.y--;
-        } else if (keyCode == SDLK_UP) {
-            if (check_platform_collision() && !isJumping) {
-                jump_sound();
-            } 
         }
     }
 }
@@ -188,11 +186,19 @@ void update(void) {
         collision_type currentCollision = get_collision_type();
         if (currentCollision == COLLISION_IS_TOUCHING_UP) {
             /* clip to top of the platform */
-            rect.y = currentZoneDisplay[colliding_platform()].y - PLAYER_HEIGHT;
+            if (!isGravityFlipped) {
+                rect.y = currentZoneDisplay[colliding_platform()].y - PLAYER_HEIGHT;
+            } else {
+                rect.y = currentZoneDisplay[colliding_platform()].y - PLAYER_HEIGHT - 1;
+            }
         } else if (currentCollision == COLLISION_IS_TOUCHING_DOWN) {
             /* clip to down of the platform */
             int collidingPlatform = colliding_platform();
-            rect.y = currentZoneDisplay[collidingPlatform].y + currentZoneDisplay[collidingPlatform].h;
+            if (isGravityFlipped) {
+                rect.y = currentZoneDisplay[collidingPlatform].y + currentZoneDisplay[collidingPlatform].h;
+            } else {
+                rect.y = currentZoneDisplay[collidingPlatform].y + currentZoneDisplay[collidingPlatform].h + 1;
+            }
         }
     }
 
@@ -232,9 +238,9 @@ int main(void) {
 	playerPosition.y = 0;
 
 	/* load test zone into currentZone */
-	currentZone = (SDL_Rect *)malloc(sizeof(SDL_Rect) * 2);
+	currentZone = (SDL_Rect *)malloc(sizeof(SDL_Rect) * 6);
 	load_test_zone(currentZone);
-	currentZoneDisplay = (SDL_Rect *)malloc(sizeof(SDL_Rect) * 2);
+	currentZoneDisplay = (SDL_Rect *)malloc(sizeof(SDL_Rect) * 6);
 	load_test_zone(currentZoneDisplay);
 	platformCount = platformsInCurrentZone();
 
@@ -306,6 +312,7 @@ int main(void) {
 	printf("closing...\n");
 
 	/* clean up res before exit */
+	cleanup_audio();
 	SDL_DestroyTexture(tex);
 	SDL_DestroyRenderer(rend);
 	SDL_DestroyWindow(win);

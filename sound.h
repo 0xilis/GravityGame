@@ -14,5 +14,6 @@
 
 void play_music(void);
 void jump_sound(void);
+void cleanup_audio(void);
 
 #endif //SOUND_H

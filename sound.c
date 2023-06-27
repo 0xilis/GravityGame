@@ -14,6 +14,8 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_mixer.h>
 
+Mix_Music *music;
+
 void play_music(void) {
     /* Initialize SDL_mixer */
     if (Mix_OpenAudio(44100, MIX_DEFAULT_FORMAT, 2, 2048) < 0) {
@@ -22,7 +24,7 @@ void play_music(void) {
     }
 
     /* Load background music */
-    Mix_Music *music = Mix_LoadMUS("resources/sonic_3_at_3am.wav");
+    music = Mix_LoadMUS("resources/sonic_3_at_3am.wav");
     if (!music) {
         fprintf(stderr, "could not load background music: %s\n", Mix_GetError());
         return;
@@ -37,6 +39,15 @@ void play_music(void) {
 Mix_Chunk* chunk;
 
 void jump_sound(void) {
-    chunk = Mix_LoadWAV("resources/jump.mp3");
+    if (!chunk) {
+        chunk = Mix_LoadWAV("resources/jump.mp3");
+    }
     Mix_PlayChannel(-1, chunk, 0);
+}
+
+/* ran before exit, cleans up audio */
+void cleanup_audio(void) {
+    Mix_FreeChunk(chunk);
+    Mix_FreeMusic(music);
+    Mix_CloseAudio();
 }
