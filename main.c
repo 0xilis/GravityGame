@@ -47,32 +47,93 @@ int check_platform_collision(void) {
         if (rect.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y && rect.x + PLAYER_WIDTH >= currentZoneDisplay[i].x && rect.x <= currentZoneDisplay[i].x + currentZone[i].w && rect.y <= (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) {
 	    return 1;
         }
+        /* Left / Right collisions */
+        /* Ensure we are on the same y level as the block */
+        if ((rect.y >= (currentZoneDisplay[i].y - currentZoneDisplay[i].h)) && (rect.y + PLAYER_HEIGHT < currentZoneDisplay[i].y)) {
+              /* Check for Left Collision */
+              if (rect.x > currentZoneDisplay[i].x && rect.x < (currentZoneDisplay[i].x + currentZoneDisplay[i].w)) {
+              }
+              return 1;  
+        }
     }
     return 0;
 }
 
-int colliding_platform(void) {
-    /* Check for collisions with platform */
+int colliding_platform(collision_type collidingWithType) {
+    /* Initialize our returnCollisionType variable */
+    collision_type returnCollisionType = COLLISION_NOT_FOUND;
+
+    /* Get collision type for platform */
     for (int i = 0; i < platformCount; i++) {
+        /* Up / Down collisions */
         if (rect.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y && rect.x + PLAYER_WIDTH >= currentZoneDisplay[i].x && rect.x <= currentZoneDisplay[i].x + currentZone[i].w && rect.y <= (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) {
-	    return i;
+            if (rect.y < (currentZoneDisplay[i].y - (currentZoneDisplay[i].h / 2))) {
+	        returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_UP);
+            } else {
+                returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_DOWN);
+            }
+        }
+        /* Left / Right collisions */
+        /* Ensure we are on the same y level as the block */
+        if ((rect.y > (currentZoneDisplay[i].y - currentZoneDisplay[i].h)) && (rect.y + PLAYER_HEIGHT <= currentZoneDisplay[i].y + currentZoneDisplay[i].h)) {
+            /* Check for Left Collision */
+            if (rect.x + PLAYER_WIDTH >= currentZoneDisplay[i].x && rect.x < (currentZoneDisplay[i].x + currentZoneDisplay[i].w)) {
+                returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_LEFT);
+            }
+            /* Check for Right Collision */
+            if (rect.x + PLAYER_WIDTH > currentZoneDisplay[i].x && rect.x <= (currentZoneDisplay[i].x + currentZoneDisplay[i].w)) {
+                returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_RIGHT);
+            }
+        }
+        if (returnCollisionType & collidingWithType) {
+            return i;
         }
     }
     return 0;
 }
 
 collision_type get_collision_type(void) {
+    /* TODO:
+     * This function has a bad bug regarding logic.
+     * Basically, while it correctly can store both LEFT and RIGHT
+     * (assuming the player is colliding with both directions)
+     * However, the same is *NOT* currently true for UP and DOWN
+     * So if player collides with both up and down at once, BAD!
+     * Fix this latr.
+     * NEVERMIND - Actually this is not as bad as I thought
+     * Seems like it can only not correctly detect UP/DOWN
+     * on one platform (and a player will never both be colliding
+     * with the same platform in both directions at once.)
+     * So hopefully I can forget about this bug.
+    */
+
+    /* Initialize our returnCollisionType variable */
+    collision_type returnCollisionType = COLLISION_NOT_FOUND;
+
     /* Get collision type for platform */
     for (int i = 0; i < platformCount; i++) {
+        /* Up / Down collisions */
         if (rect.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y && rect.x + PLAYER_WIDTH >= currentZoneDisplay[i].x && rect.x <= currentZoneDisplay[i].x + currentZone[i].w && rect.y <= (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) {
             if (rect.y < (currentZoneDisplay[i].y - (currentZoneDisplay[i].h / 2))) {
-	        return COLLISION_IS_TOUCHING_UP;
+	        returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_UP);
             } else {
-                return COLLISION_IS_TOUCHING_DOWN;
+                returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_DOWN);
+            }
+        }
+        /* Left / Right collisions */
+        /* Ensure we are on the same y level as the block */
+        if ((rect.y > (currentZoneDisplay[i].y - currentZoneDisplay[i].h)) && (rect.y + PLAYER_HEIGHT <= currentZoneDisplay[i].y + currentZoneDisplay[i].h)) {
+            /* Check for Left Collision */
+            if (rect.x + PLAYER_WIDTH >= currentZoneDisplay[i].x && rect.x < (currentZoneDisplay[i].x + currentZoneDisplay[i].w)) {
+                returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_LEFT);
+            }
+            /* Check for Right Collision */
+            if (rect.x + PLAYER_WIDTH > currentZoneDisplay[i].x && rect.x <= (currentZoneDisplay[i].x + currentZoneDisplay[i].w)) {
+                returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_RIGHT);
             }
         }
     }
-    return COLLISION_NOT_FOUND;
+    return returnCollisionType;
 }
 
 int didHitMaxHeight = 0;
@@ -82,24 +143,69 @@ int moveProgress = 0;
 int isGravityFlipped = 0;
 int gravity = GRAVITY - 3;
 
+__attribute__((always_inline)) static void screenScrolling() {
+    /* divide these into zones for performance (no need to scroll all platforms) */
+    for (int i = 0; i < platformCount; i++) {
+        currentZoneDisplay[i].x = currentZone[i].x - playerPosition.x;
+    }
+}
+
 void handle_events(void) {
     /* Key presses */
     const Uint8 *keys = SDL_GetKeyboardState(NULL);
 
     if (keys[SDL_SCANCODE_LEFT]) {
-        if (moveProgress >= 20) {
-            playerPosition.x -= 10;
-        } else {
-            moveProgress++;
-            playerPosition.x -= (5 + (moveProgress / 4));
+        /* Ensure we aren't colliding with anything before going left */
+        if (!(get_collision_type() & COLLISION_IS_TOUCHING_RIGHT)) {
+            if (moveProgress >= 20) {
+                playerPosition.x -= 10;
+            } else {
+                moveProgress++;
+                playerPosition.x -= (5 + (moveProgress / 4));
+            }
+            /* TODO: This is horrible. */
+            screenScrolling();
+            /* Ensure that if we went inside of a platform, move us back */
+            if (get_collision_type() & COLLISION_IS_TOUCHING_RIGHT) {
+                while (get_collision_type() & COLLISION_IS_TOUCHING_RIGHT) {
+                    playerPosition.x += 1;
+                    /* Screen-scroll just the misbehaving platform - thankfully we run screenScrolling() in update latr so this should work, but still, we screen scroll once, then do this, then screen scroll again - not exactly the fastest system, we should improve this tbh */
+                    int theBadPlatform = colliding_platform(COLLISION_IS_TOUCHING_RIGHT);
+                    if (theBadPlatform == 0) {
+                        printf("FUCK\n");
+                        break;
+                    }
+                    currentZoneDisplay[theBadPlatform].x -= 1;
+                }
+                /* Now, we are moved back to exactly before we start colliding with right */
+                /* Move back 1 position forward to push us backward and move to our correct position */
+                playerPosition.x--;
+            }
         }
     }
     if (keys[SDL_SCANCODE_RIGHT]) {
-        if (moveProgress >= 20) {
-            playerPosition.x += 10;
-        } else {
-            moveProgress++;
-            playerPosition.x += 5 + (moveProgress / 4);
+        /* Ensure we aren't colliding with anything before going right */
+        if (!(get_collision_type() & COLLISION_IS_TOUCHING_LEFT)) {
+            if (moveProgress >= 20) {
+                playerPosition.x += 10;
+            } else {
+                moveProgress++;
+                playerPosition.x += 5 + (moveProgress / 4);
+            }
+            /* TODO: I am ASSUMING this does not work currently as get_collision_type needs us to screen scroll first before it correctly returns collision */
+            screenScrolling();
+            /* Ensure that if we went inside of a platform, move us back */
+            if (get_collision_type() & COLLISION_IS_TOUCHING_LEFT) {
+                while (get_collision_type() & COLLISION_IS_TOUCHING_LEFT) {
+                    playerPosition.x -= 1;
+                    /* Screen-scroll just the misbehaving platform - thankfully we run screenScrolling() in update latr so this should work, but still, we screen scroll once, then do this, then screen scroll again - not exactly the fastest system, we should improve this tbh */
+                    int theBadPlatform = colliding_platform(COLLISION_IS_TOUCHING_LEFT);
+                    currentZoneDisplay[theBadPlatform].x += 1;
+                }
+                /* Now, we are moved back to exactly before we start colliding with left */
+                /* Move us 1 position forward to push us forward and move to our correct position */
+                playerPosition.x++;
+            }
         }
     }
     if (!keys[SDL_SCANCODE_LEFT] && !keys[SDL_SCANCODE_RIGHT]) {
@@ -126,6 +232,9 @@ void handle_events(void) {
                 }
             }
         }
+    } else {
+        /* If player lets go of jump mid-jump, then make it so that that will be the height of their jump and even if they hold up again before they touch the ground they cannot jump again till they touch the ground */
+        didHitMaxHeight = 1;
     }
 
     if (check_platform_collision()) {
@@ -148,13 +257,6 @@ void handle_events(void) {
             /* Sub 1 bc dump mitigation :P */
             rect.y--;
         }
-    }
-}
-
-__attribute__((always_inline)) static void screenScrolling() {
-    /* divide these into zones for performance (no need to scroll all platforms) */
-    for (int i = 0; i < platformCount; i++) {
-        currentZoneDisplay[i].x = currentZone[i].x - playerPosition.x;
     }
 }
 
@@ -184,16 +286,16 @@ void update(void) {
     /* this cannot be part of the else above bc we want to do this before render */
     if (check_platform_collision()) {
         collision_type currentCollision = get_collision_type();
-        if (currentCollision == COLLISION_IS_TOUCHING_UP) {
+        if (currentCollision & COLLISION_IS_TOUCHING_UP) {
             /* clip to top of the platform */
             if (!isGravityFlipped) {
-                rect.y = currentZoneDisplay[colliding_platform()].y - PLAYER_HEIGHT;
+                rect.y = currentZoneDisplay[colliding_platform(COLLISION_IS_TOUCHING_UP)].y - PLAYER_HEIGHT;
             } else {
-                rect.y = currentZoneDisplay[colliding_platform()].y - PLAYER_HEIGHT - 1;
+                rect.y = currentZoneDisplay[colliding_platform(COLLISION_IS_TOUCHING_UP)].y - PLAYER_HEIGHT - 1;
             }
-        } else if (currentCollision == COLLISION_IS_TOUCHING_DOWN) {
+        } else if (currentCollision & COLLISION_IS_TOUCHING_DOWN) {
             /* clip to down of the platform */
-            int collidingPlatform = colliding_platform();
+            int collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_DOWN);
             if (isGravityFlipped) {
                 rect.y = currentZoneDisplay[collidingPlatform].y + currentZoneDisplay[collidingPlatform].h;
             } else {
@@ -238,9 +340,9 @@ int main(void) {
 	playerPosition.y = 0;
 
 	/* load test zone into currentZone */
-	currentZone = (SDL_Rect *)malloc(sizeof(SDL_Rect) * 6);
+	currentZone = (SDL_Rect *)malloc(sizeof(SDL_Rect) * platforms_in_test_zone());
 	load_test_zone(currentZone);
-	currentZoneDisplay = (SDL_Rect *)malloc(sizeof(SDL_Rect) * 6);
+	currentZoneDisplay = (SDL_Rect *)malloc(sizeof(SDL_Rect) * platforms_in_test_zone());
 	load_test_zone(currentZoneDisplay);
 	platformCount = platformsInCurrentZone();
 

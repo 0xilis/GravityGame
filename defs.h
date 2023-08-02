@@ -37,6 +37,8 @@ typedef struct {
 
 #define COLLISION_IS_TOUCHING_UP 1
 #define COLLISION_IS_TOUCHING_DOWN 2
+#define COLLISION_IS_TOUCHING_LEFT 4
+#define COLLISION_IS_TOUCHING_RIGHT 8
 #define COLLISION_NOT_FOUND 0
 #define collision_type int
 

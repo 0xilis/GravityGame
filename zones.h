@@ -19,5 +19,8 @@
 
 void load_test_zone();
 int platformsInCurrentZone();
+__attribute__((always_inline)) static int platforms_in_test_zone(void) {
+    return 11;
+}
 
 #endif //ZONES_H

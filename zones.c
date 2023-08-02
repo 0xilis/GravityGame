@@ -33,7 +33,24 @@ void load_test_zone(SDL_Rect *currentZone) {
     SDL_Rect platform6 = {platform1_right_endpoint + 200 + PLATFORM_WIDTH, SCREEN_HEIGHT - PLATFORM_HEIGHT - 350, PLATFORM_WIDTH, PLATFORM_HEIGHT};
     currentZone[5] = platform6;
 
-    currentZonePlatformCount = 6;
+    /* The platform to test the collision */
+    SDL_Rect platform7 = {platform1_right_endpoint + 250 + PLATFORM_WIDTH, SCREEN_HEIGHT - PLATFORM_HEIGHT - 70, PLATFORM_WIDTH, PLATFORM_HEIGHT};
+    currentZone[6] = platform7;
+
+    SDL_Rect platform8 = {platform1_right_endpoint + 250 + PLATFORM_WIDTH, SCREEN_HEIGHT - PLATFORM_HEIGHT - 20, PLATFORM_WIDTH, PLATFORM_HEIGHT};
+    currentZone[7] = platform8;
+
+    /* The platform to test the collision for _RIGHT */
+    SDL_Rect platform9 = {SCREEN_WIDTH/2 - PLATFORM_WIDTH/2 - PLATFORM_WIDTH - 80, SCREEN_HEIGHT - PLATFORM_HEIGHT - 70, PLATFORM_WIDTH, PLATFORM_HEIGHT};
+    currentZone[8] = platform9;
+
+    SDL_Rect platform10 = {SCREEN_WIDTH/2 - PLATFORM_WIDTH/2 - PLATFORM_WIDTH - 80, SCREEN_HEIGHT - PLATFORM_HEIGHT - 20, PLATFORM_WIDTH, PLATFORM_HEIGHT};
+    currentZone[9] = platform10;
+
+    SDL_Rect platform11 = {SCREEN_WIDTH/2 - PLATFORM_WIDTH/2 - PLATFORM_WIDTH - 50, SCREEN_HEIGHT - PLATFORM_HEIGHT - 50, PLATFORM_WIDTH, PLATFORM_HEIGHT};
+    currentZone[10] = platform11;
+
+    currentZonePlatformCount = platforms_in_test_zone();
 }
 
 int platformsInCurrentZone() {
