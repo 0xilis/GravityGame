@@ -10,6 +10,7 @@
 */
 
 #include "zones.h"
+#include "seajson.h"
 
 /* Platform dimensions */
 #define PLATFORM_WIDTH 200
@@ -17,6 +18,7 @@
 
 int currentZonePlatformCount = 0;
 
+#if 0
 void load_test_zone(SDL_Rect *currentZone) {
     SDL_Rect platform1 = {SCREEN_WIDTH/2 - PLATFORM_WIDTH/2, SCREEN_HEIGHT - PLATFORM_HEIGHT, PLATFORM_WIDTH, PLATFORM_HEIGHT};
     currentZone[0] = platform1;
@@ -51,6 +53,31 @@ void load_test_zone(SDL_Rect *currentZone) {
     currentZone[10] = platform11;
 
     currentZonePlatformCount = platforms_in_test_zone();
+}
+#endif
+
+SDL_Rect * load_level_as_full_zone(const char *restrict filename) {
+    printf("loading level \"%s\" ...\n",filename);
+    seajson level = init_json_from_file(filename);
+    currentZonePlatformCount = get_int(level,"platform_count");
+    SDL_Rect *currentZone = (SDL_Rect *)malloc(sizeof(SDL_Rect) * currentZonePlatformCount);
+    jarray platforms = get_array(level,"platforms");
+    int platformCount = platforms.itemCount;
+    for (int i = 0; i < platformCount; i++) {
+        seajson platformInfo = get_item_from_jarray(platforms, i);
+        jarray platformPointTemp = get_array(platformInfo,"point");
+        jarray platformPoint = remove_whitespace_from_jarray(platformPointTemp);
+        /* Free the jarray with whitespace since it is unusable */
+        free_jarray(platformPointTemp);
+        SDL_Rect platform = {get_int_from_jarray(platformPoint, 0), get_int_from_jarray(platformPoint, 1), get_int_from_jarray(platformPoint, 2), get_int_from_jarray(platformPoint, 3)};
+        currentZone[i] = platform;
+        free(platformInfo);
+        free_jarray(platformPoint);
+    }
+    free_jarray(platforms);
+    free(level);
+    printf("loaded \"%s\".\n",filename);
+    return currentZone;
 }
 
 int platformsInCurrentZone() {
