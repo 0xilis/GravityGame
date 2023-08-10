@@ -32,8 +32,6 @@ SDL_Renderer* rend;
 SDL_Rect rect = {SCREEN_WIDTH/2 - PLAYER_WIDTH/2, SCREEN_HEIGHT - STARTING_PLATFORM_HEIGHT - PLAYER_HEIGHT, PLAYER_WIDTH, PLAYER_HEIGHT};
 SDL_Rect background = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
 int running = 1;
-SDL_Rect *currentZoneDisplay;
-SDL_Rect *currentZone;
 int platformCount;
 int isPaused = 0;
 SDL_Rect pendingRect = {0, 0, 0, 0};
@@ -89,7 +87,7 @@ int colliding_platform(collision_type collidingWithType, SDL_Rect obj) {
             return i;
         }
     }
-    return 0;
+    return -1;
 }
 
 collision_type get_collision_type(void) {
@@ -196,7 +194,10 @@ void handle_events(void) {
                 isGravityFlipped = !isGravityFlipped;
                 gravity = GRAVITY - 3;
                 /* Sub 1 bc dump mitigation :P */
-                rect.y--;
+                if (isGravityFlipped) {
+                    rect.y -= 2;
+                }
+                rect.y++;
             }
         } else if (strcmp(key,"P") == 0) {
             if (isPaused) {
@@ -253,17 +254,8 @@ void handle_events(void) {
         } else if (event.button.button == SDL_BUTTON_RIGHT) {
             printf("Right click at (%d, %d)\n", event.button.x, event.button.y);
             SDL_Rect click = {event.button.x - 2, event.button.y - 2, 4, 4};
-            int collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP, click);
-            if (!collidingPlatform) {
-                collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_DOWN, click);
-                if (!collidingPlatform) {
-                    collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_LEFT, click);
-                    if (!collidingPlatform) {
-                        collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_RIGHT, click);
-                    }
-                }
-            }
-            if (collidingPlatform) {
+            int collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_ANY, click);
+            if (collidingPlatform != -1) {
                 printf("colliding platform!!!\n");
                 /* Remove the colliding platform */
                 /* I *could* realloc to take the less platform into account... but nah lol */
@@ -347,11 +339,10 @@ void handle_events(void) {
         }
         if (isJumping) {
             if (!didHitMaxHeight) {
-                /* i really shoddadely tiredly added gravity to jumping, do better than this later when not tired and it is not 3:06 :P */
                 if (!isGravityFlipped) {
-                    rect.y -= (PLAYER_JUMP_VELOCITY - jumpHeight/4) + (GRAVITY - jumpHeight/20);
+                    rect.y -= (PLAYER_JUMP_VELOCITY_PLUS_GRAVITY - (0.3 * jumpHeight));
                 } else {
-                    rect.y += (PLAYER_JUMP_VELOCITY - jumpHeight/4) + (GRAVITY - jumpHeight/20);
+                    rect.y += (PLAYER_JUMP_VELOCITY_PLUS_GRAVITY - (0.3 * jumpHeight));
                 }
                 jumpHeight += (PLAYER_JUMP_VELOCITY - jumpHeight/4);
                 if (jumpHeight >= PLAYER_JUMP_MAX_HEIGHT) {
@@ -362,13 +353,6 @@ void handle_events(void) {
     } else {
         /* If player lets go of jump mid-jump, then make it so that that will be the height of their jump and even if they hold up again before they touch the ground they cannot jump again till they touch the ground */
         didHitMaxHeight = 1;
-    }
-
-    if (check_platform_collision()) {
-        /* If touching ground, not jumping currently!! */
-        isJumping = 0;
-        didHitMaxHeight = 0;
-        jumpHeight = 0;
     }
 }
 
@@ -385,29 +369,33 @@ void update(void) {
             }
         } else {
             if (rect.y < SCREEN_HEIGHT * 2) {
-                rect.y += (gravity / 2);
+                rect.y += (gravity >> 1);
             }
         }
         if (gravity <= GRAVITY_MAX) {
             gravity++;
         }
-    } else {
-        gravity = GRAVITY - 3;
     }
 
     /* this cannot be part of the else above bc we want to do this before render */
     if (check_platform_collision()) {
-        collision_type currentCollision = get_collision_type();
-        if (currentCollision & COLLISION_IS_TOUCHING_UP) {
+        /* If touching ground, not jumping currently!! */
+        isJumping = 0;
+        didHitMaxHeight = 0;
+        jumpHeight = 0;
+        gravity = GRAVITY - 3;
+        /* if this is -1 then we KNOW col is COLLISION_IS_TOUCHING_DOWN instead */
+        int collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP, rect);
+        if (collidingPlatform != -1) {
             /* clip to top of the platform */
             if (!isGravityFlipped) {
-                rect.y = currentZoneDisplay[colliding_platform(COLLISION_IS_TOUCHING_UP, rect)].y - PLAYER_HEIGHT;
+                rect.y = currentZoneDisplay[collidingPlatform].y - PLAYER_HEIGHT;
             } else {
-                rect.y = currentZoneDisplay[colliding_platform(COLLISION_IS_TOUCHING_UP, rect)].y - PLAYER_HEIGHT - 1;
+                rect.y = currentZoneDisplay[collidingPlatform].y - PLAYER_HEIGHT - 1;
             }
-        } else if (currentCollision & COLLISION_IS_TOUCHING_DOWN) {
+        } else {
             /* clip to down of the platform */
-            int collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_DOWN, rect);
+            collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_DOWN, rect);
             if (isGravityFlipped) {
                 rect.y = currentZoneDisplay[collidingPlatform].y + currentZoneDisplay[collidingPlatform].h;
             } else {
@@ -421,18 +409,12 @@ void render(void) {
     /* Clear screen */
     SDL_SetRenderDrawColor(rend, BLACK_COLOR.r, BLACK_COLOR.g, BLACK_COLOR.b, BLACK_COLOR.a);
     SDL_RenderClear(rend);
-    SDL_RenderFillRect(rend, &background);
     SDL_RenderCopy(rend, backgroundTex, NULL, &background);
 
     /* Draw platform */
     SDL_SetRenderDrawColor(rend, WHITE_COLOR.r, WHITE_COLOR.g, WHITE_COLOR.b, WHITE_COLOR.a);
-    for (int i = 0; i < platformCount; i++) {
-        SDL_RenderFillRect(rend, &currentZoneDisplay[i]);
-    }
+    SDL_RenderFillRects(rend, currentZoneDisplay, platformCount);
 
-    /* Draw player */
-    SDL_SetRenderDrawColor(rend, PURPLE_COLOR.r, PURPLE_COLOR.g, PURPLE_COLOR.b, PURPLE_COLOR.a);
-    SDL_RenderFillRect(rend, &rect);
     /* Gimme da image! */
     SDL_RenderCopy(rend, tex, NULL, &rect);
 

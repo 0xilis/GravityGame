@@ -17,6 +17,9 @@
 #include <SDL2/SDL.h>
 #include "defs.h"
 
+SDL_Rect *currentZoneDisplay;
+SDL_Rect *currentZone;
+
 void load_test_zone();
 int platformsInCurrentZone();
 SDL_Rect * load_level_as_full_zone(const char *restrict filename);

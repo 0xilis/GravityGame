@@ -1,0 +1,209 @@
+Gravity Jump Physics:
+
+
+In Gravity Build 006, these are the current results of the jump physics. x is the amount of times the code is ran.
+
+(0,0) j = 0
+(1,25) j = 20
+(2,44) j = 35
+(3,93.5) j = 46.25
+
+actually nevermind maybe
+
+(0,0) j = 0
+(1,25) j = 20
+(2,44) j = 35
+(3,60.75) j = 46.25
+
+The current formula (until max height) is: (with 20 being PLAYER_JUMP_VELOCITY and 5 being GRAVITY)
+
+rect.y += (20 - jumpHeight/4) + (5 - jumpHeight/20);
+jumpHeight += (20 - jumpHeight/4);
+
+These results are *BAD*! Jumping does not feel great.
+
+First off, we can optimize it:
+
+jumpHeight += (20 - jumpHeight/4);
+rect.y += ~~jumpHeight + 5~~
+
+(0,0)
+(1,20)
+(2,35)
+(3,46.25)
+(4,54.6875)
+
+Ok after a lot of attempts to optimize, I think I finally found stuff that works:
+
+(20 - jumpHeight/4) + (5 - jumpHeight/20);
+
+Can also be simplified as
+
+(25 - ((3 * j) / 10);
+
+Which can be written as
+
+(25 - (0.3 * j));
+
+Which according to speed test saves roughly 10 nanoseconds
+
+
+
+
+Gravity optimizations:
+
+This is gravity:
+
+/* Check for collisions with platform */
+    if (!check_platform_collision()) {
+        /* Apply gravity */
+        if (isGravityFlipped) {
+            if (rect.y > (-2 * SCREEN_HEIGHT)) {
+                rect.y -= (gravity / 2);
+            }
+        } else {
+            if (rect.y < SCREEN_HEIGHT * 2) {
+                rect.y += (gravity / 2);
+            }
+        }
+        if (gravity <= GRAVITY_MAX) {
+            gravity++;
+        }
+    } else {
+        gravity = GRAVITY - 3;
+    }
+
+This line:
+
+(gravity / 2);
+
+Can be changed to:
+
+(gravity >> 1);
+
+(Thanks for Kaze in the Mario ChatGPT optimizations vid for idea)
+
+(gravity / 2) results in:
+
+loc_100004435:
+    r10 = *(int32_t *)_rect;
+    r9 = *(int32_t *)dword_10000c1a4;
+    if (*(int32_t *)_isGravityFlipped != 0x0) {
+            r10 = *(int32_t *)_rect;
+            if (*(int32_t *)dword_10000c1a4 >= 0xfffffc41) {
+                    r10 = *(int32_t *)_rect;
+                    r9 = *(int32_t *)dword_10000c1a4;
+                    rax = *(int32_t *)_gravity;
+                    r9 = r9 - (SAR((rax >> 0x1f) + rax, 0x1));
+                    *(int32_t *)dword_10000c1a4 = r9;
+            }
+            else {
+                    r10 = *(int32_t *)_rect;
+                    r9 = *(int32_t *)dword_10000c1a4;
+                    rax = *(int32_t *)_gravity;
+            }
+    }
+    else {
+            r10 = *(int32_t *)_rect;
+            if (*(int32_t *)dword_10000c1a4 <= 0x3bf) {
+                    r10 = *(int32_t *)_rect;
+                    r9 = *(int32_t *)dword_10000c1a4;
+                    rax = *(int32_t *)_gravity;
+                    *(int32_t *)dword_10000c1a4 = (SAR((rax >> 0x1f) + rax, 0x1)) + r9;
+                    r9 = (SAR((rax >> 0x1f) + rax, 0x1)) + r9;
+            }
+            else {
+                    r10 = *(int32_t *)_rect;
+                    r9 = *(int32_t *)dword_10000c1a4;
+                    rax = *(int32_t *)_gravity;
+            }
+    }
+    goto loc_10000449a;
+
+With (>>1):
+
+loc_100004435:
+    r10 = *(int32_t *)_rect;
+    r9 = *(int32_t *)dword_10000c1a4;
+    if (*(int32_t *)_isGravityFlipped != 0x0) {
+            r10 = *(int32_t *)_rect;
+            if (*(int32_t *)dword_10000c1a4 >= 0xfffffc41) {
+                    r10 = *(int32_t *)_rect;
+                    r9 = *(int32_t *)dword_10000c1a4;
+                    rax = *(int32_t *)_gravity;
+                    r9 = r9 - (SAR((rax >> 0x1f) + rax, 0x1));
+                    *(int32_t *)dword_10000c1a4 = r9;
+            }
+            else {
+                    r10 = *(int32_t *)_rect;
+                    r9 = *(int32_t *)dword_10000c1a4;
+                    rax = *(int32_t *)_gravity;
+            }
+    }
+    else {
+            r10 = *(int32_t *)_rect;
+            if (*(int32_t *)dword_10000c1a4 <= 0x3bf) {
+                    r10 = *(int32_t *)_rect;
+                    r9 = *(int32_t *)dword_10000c1a4;
+                    rax = *(int32_t *)_gravity;
+                    *(int32_t *)dword_10000c1a4 = (SAR(rax, 0x1)) + r9;
+                    r9 = (SAR(rax, 0x1)) + r9;
+            }
+            else {
+                    r10 = *(int32_t *)_rect;
+                    r9 = *(int32_t *)dword_10000c1a4;
+                    rax = *(int32_t *)_gravity;
+            }
+    }
+    goto loc_100004495;
+
+The difference is this line:
+
+r9 = (SAR((rax >> 0x1f) + rax, 0x1)) + r9;
+
+is now:
+
+r9 = (SAR(rax, 0x1)) + r9;
+
+
+
+
+So, why not have both?
+
+In both, 0x100003bd4 (loc_100003bd4 ) in handle_events seems to get bigger?
+
+I guess compiler problem
+
+So we only save 1 instruction with this change, but hey better than no optimization
+
+
+
+
+(Some more optimizations have been done)
+
+Fixing the infamous jump clip:
+
+I believe to have finally found why jump clips happen.
+
+In build 006, handle_events handles key presses. Flips gravity when it detects event keydown z (which will also revert gravity to normal), as well as moves the player up one pixel for some reason (can't remember why i did this), and later, if UP is pressed, jump.
+
+Let's imagine a scenario:
+
+-Player is flipped gravity, standing on block.
+-Player triggers flip and jump on same frame.
+-handle_events flips gravity, moves player up by 1 pixel
+-then, handle_events sees player is pressing up. They want to jump.
+-GravityGame then checks if player is touching a platform up/down, if so, begin jump
+-GravityGame moves player y up - we are now about -21 y inside of the platform
+-Player is now above a block assuming the height of it is 20. (It is noted that if it is higher than 42, update() may correct player position before frame is rendered since the center point of the player would be below the center point of the platform).
+-Ok, I'm not sure this was the reason, but, a comment above the rect.y--; makes reference that it is a mitigation for a bug.
+-If the player tries these steps but without flipping gravity, the rect.y--; will make check_platform_collision() return false and therefore will be unable to jump clip. Perhaps this is the reason I put it there was to fix this? But I checked 004 and looks like back then the gravity flip in handle_events was after jump colls which I believe would have patched this...
+
+
+So, then, to fix jump clips, we have the following options:
+
+-In GravityGame, when gravity is flipped, do rect.y--; only if isGravityFlipped is on, and rect.y++; if it is not.
+-Move event handling for flipping gravity below jump
+-Improve jump so that isJumping = 1 is only set if the player is touching the side of the block they should only be touching when jump; ex if gravity is not flipped and they are touching the bottom rather than the top of a platform, do not trigger a jump. This seems like sadly it may be the most performance-intensive but just makes the most out of all of these, so let's do this one. (ACTUALLY NEVERMIND I'M DOING THE FIRST ONE SINCE IT SHOULD BE FASTER.)
+
+Now, jump clips are fixed!

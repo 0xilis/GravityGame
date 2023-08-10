@@ -23,6 +23,7 @@
 #define PLAYER_JUMP_MAX_HEIGHT 100.0
 #define PLAYER_JUMP_HEIGHT_STAGE_2 80.0
 #define PLAYER_JUMP_HEIGHT_STAGE_2_VELOCITY 10.0
+#define PLAYER_JUMP_VELOCITY_PLUS_GRAVITY 25.0
 
 /* PlayerPos type */
 typedef struct {
@@ -39,6 +40,7 @@ typedef struct {
 #define COLLISION_IS_TOUCHING_DOWN 2
 #define COLLISION_IS_TOUCHING_LEFT 4
 #define COLLISION_IS_TOUCHING_RIGHT 8
+#define COLLISION_IS_TOUCHING_ANY 15 /* 1 | 2 | 4 | 8 = 15 */
 #define COLLISION_NOT_FOUND 0
 #define collision_type int
 
