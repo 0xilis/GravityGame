@@ -44,16 +44,16 @@ Mix_Chunk* chunk;
 Mix_Chunk* blank;
 
 void jump_sound(char* resourcePath) {
-    char *jumpSfxResource = find_resource("resources/jump.mp3");
-    char *blankSfxResource = find_resource("resources/blank.mp3");
     if (!chunk) {
+        char *jumpSfxResource = find_resource("resources/jump.mp3");
+        char *blankSfxResource = find_resource("resources/blank.mp3");
         chunk = Mix_LoadWAV(jumpSfxResource);
         blank = Mix_LoadWAV(blankSfxResource);
+        free(jumpSfxResource);
+        free(blankSfxResource);
+        jumpSfxResource = NULL;
+        blankSfxResource = NULL;
     }
-    free(jumpSfxResource);
-    free(blankSfxResource);
-    jumpSfxResource = NULL;
-    blankSfxResource = NULL;
     if (!Mix_Playing(3)) {
         /* SDL2's Mixer does not have native support for finding duration of chunk so here's my shitty workaround */
         Mix_PlayChannelTimed(3, blank, -1, 200);

@@ -331,8 +331,8 @@ void handle_events(void) {
         moveProgress = 0;
     }
     if (keys[SDL_SCANCODE_UP]) {
-        if (check_platform_collision()) {
-            if (!isJumping) {
+        if (!isJumping) {
+            if (check_platform_collision()) {
                 isJumping = 1;
                 jump_sound();
             }
@@ -360,8 +360,10 @@ void update(void) {
     /* Screen scrolling */
     screen_scrolling();
 
+    int collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP | COLLISION_IS_TOUCHING_DOWN, rect);
+
     /* Check for collisions with platform */
-    if (!check_platform_collision()) {
+    if (collidingPlatform == -1) {
         /* Apply gravity */
         if (isGravityFlipped) {
             if (rect.y > (-2 * SCREEN_HEIGHT)) {
@@ -375,18 +377,18 @@ void update(void) {
         if (gravity <= GRAVITY_MAX) {
             gravity++;
         }
+        collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP | COLLISION_IS_TOUCHING_DOWN, rect);
     }
 
     /* this cannot be part of the else above bc we want to do this before render */
-    if (check_platform_collision()) {
+    if (collidingPlatform != -1) {
         /* If touching ground, not jumping currently!! */
         isJumping = 0;
         didHitMaxHeight = 0;
         jumpHeight = 0;
         gravity = GRAVITY - 3;
         /* if this is -1 then we KNOW col is COLLISION_IS_TOUCHING_DOWN instead */
-        int collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP, rect);
-        if (collidingPlatform != -1) {
+        if (get_collision_type_for_platform(collidingPlatform, rect) & COLLISION_IS_TOUCHING_UP) {
             /* clip to top of the platform */
             if (!isGravityFlipped) {
                 rect.y = currentZoneDisplay[collidingPlatform].y - PLAYER_HEIGHT;
@@ -395,7 +397,6 @@ void update(void) {
             }
         } else {
             /* clip to down of the platform */
-            collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_DOWN, rect);
             if (isGravityFlipped) {
                 rect.y = currentZoneDisplay[collidingPlatform].y + currentZoneDisplay[collidingPlatform].h;
             } else {
@@ -407,7 +408,6 @@ void update(void) {
 
 void render(void) {
     /* Clear screen */
-    SDL_SetRenderDrawColor(rend, BLACK_COLOR.r, BLACK_COLOR.g, BLACK_COLOR.b, BLACK_COLOR.a);
     SDL_RenderClear(rend);
     SDL_RenderCopy(rend, backgroundTex, NULL, &background);
 
