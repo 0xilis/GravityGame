@@ -1,0 +1,31 @@
+BUILD 007 CHANGES:
+
+- Improved collision logic
+- Coyote timers
+- Optimizations
+- colliding_platform now returns -1 if it can't find collision, which fixes a bug with right click removing platforms not working for the 0th index since there would be no way to differ between a failed result and the platform in index 0. Also introduced COLLISION_IS_TOUCHING_ANY to optimize this process a bit too.
+- eliminated need to have platform_count in the level.json
+- slight optimization to left/right movement
+- updated SeaJSON from build 6 to 15.
+- find_resource optimized a bit
+
+BUILD 006 CHANGES:
+
+- Slightly modified jump sound affect so there is much less of a delay
+- 200 tick cooldown for jump sound affect
+- You now pass in the obj that you want to check collision with into colliding_platform
+- Changed the gravity switch key from "P" to "Z".
+- Changed screenScrolling() to screen_scrolling() for consistency since other functions are all snake case
+- Wrote SeaJSON Library (read half)
+- Make zones.c able to load zones from a JSON file using SeaJSON
+- New resource path finder for finding resources from argv[0]
+- A major overhaul on collision. To many things to fully list, including optimizations/bugfixes, but here are a couple:
+-- Removed unused code in check_platform_collision
+-- New get_collision_type_for_platform function
+-- To fix needing screen_scrolling every left/right hit, change player rect x instead & playerPosition and check collision, and afterwards revert original player rect x
+-- When position fixing, before fix loop get the index of platform and fix position using only that platform index, this way no need to loop through all platforms
+-- In collision, for up/down there is a y level check, and then x level checks. For left/right there is a y level check. The up/down y level checks now not only contain the up/down x level checks but also left/right level checks, as left/right y checks should only have a chance of returning true when up/down y level check is true as well, so we can potentially save an extra if statement
+-- Make up/down collision be based on the player's center point rather than the top, which fixes how the player would jump through a platform even if it touches their head if they had flipped gravity.
+-- And *way* more polishes/bugfixes.
+- New level editor, left click to place a block, right click to remove a block.
+- New pause ability, press "P" to pause.

@@ -18,6 +18,7 @@
 #include "sound.h"
 #include "zones.h"
 #include "resource_management.h"
+#include <limits.h>
 
 #include "defs.h"
 
@@ -44,6 +45,12 @@ SDL_Texture *backgroundTex; /* Texture of the background */
 PlayerPos playerPosition;
 
 /* Collision */
+
+#define I_WONDER_WHAT_WILL_HAPPEN 1
+#define HACKY_WORKAROUND_FOR_COLLISION_BUG 1 /* TODO: Support other gravity as well */
+
+#define COYOTE_MAX 5
+int coyote = 0;
 
 int check_platform_collision(void) {
     /* Check for collisions with platform */
@@ -167,6 +174,78 @@ collision_type get_collision_type_for_platform(int platformIndex, SDL_Rect obj) 
     return returnCollisionType;
 }
 
+/* Returns below platform */
+int below_platform(SDL_Rect obj) {
+    /* Initialize our returnBelowPlatform variable */
+    int returnBelowPlatform = -1;
+    if (!currentZoneDisplay) {
+        /* ERROR! No platforms?? */
+        return -1;
+        
+    }
+    int yOfLastBelowPlatform = INT_MAX;
+
+    /* Get bottom of player */
+    //int playerBottom = (obj.y + PLAYER_HEIGHT);
+
+    /* Get collision type for platform */
+    for (int i = 0; i < platformCount; i++) {
+        /* Ensure we are on the same x level as the block */
+        if (obj.x + PLAYER_WIDTH > currentZoneDisplay[i].x && obj.x < currentZoneDisplay[i].x + currentZone[i].w) {
+#if HACKY_WORKAROUND_FOR_COLLISION_BUG
+            if ((currentZoneDisplay[i].y + currentZoneDisplay[i].h) > (obj.y + 2)) {
+#else
+            if ((currentZoneDisplay[i].y + currentZoneDisplay[i].h) > obj.y) {
+#endif
+                /* Make sure this platform is above the last platform we checked */
+                if (currentZoneDisplay[i].y < yOfLastBelowPlatform) {
+                    yOfLastBelowPlatform = currentZoneDisplay[i].y;
+                    returnBelowPlatform = i;
+                }
+            } else {
+#if 0
+                /* Check for UP/DOWN collision */
+                if (obj.y <= (currentZoneDisplay[i].y + currentZoneDisplay[i].h) && obj.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y) {
+                    /* Colliding!!! Return */
+                    return i;
+                }
+#endif
+                //return returnBelowPlatform; 
+            }
+        }
+    }
+    return returnBelowPlatform;
+}
+
+/* Returns above platform, reverse of below_platform */
+int above_platform(SDL_Rect obj) {
+    /* Initialize our returnBelowPlatform variable */
+    int returnAbovePlatform = -1;
+    int yOfLastAbovePlatform = INT_MIN;
+
+    /* Get bottom of player */
+#if HACKY_WORKAROUND_FOR_COLLISION_BUG
+    int playerBottom = (obj.y + PLAYER_HEIGHT) - 2;
+#else
+    int playerBottom = (obj.y + PLAYER_HEIGHT);
+#endif
+
+    /* Get collision type for platform */
+    for (int i = 0; i < platformCount; i++) {
+        /* Ensure we are on the same x level as the block */
+        if (obj.x + PLAYER_WIDTH > currentZoneDisplay[i].x && obj.x < currentZoneDisplay[i].x + currentZone[i].w) {
+            if (currentZoneDisplay[i].y < playerBottom) {
+                /* Make sure this platform is above the last platform we checked */
+                if (currentZoneDisplay[i].y > yOfLastAbovePlatform) {
+                    yOfLastAbovePlatform = currentZoneDisplay[i].y;
+                    returnAbovePlatform = i;
+                }
+            }
+        }
+    }
+    return returnAbovePlatform;
+}
+
 int didHitMaxHeight = 0;
 int isJumping = 0;
 int jumpHeight = 0;
@@ -193,11 +272,6 @@ void handle_events(void) {
                 /* Flip Gravity */
                 isGravityFlipped = !isGravityFlipped;
                 gravity = GRAVITY - 3;
-                /* Sub 1 bc dump mitigation :P */
-                if (isGravityFlipped) {
-                    rect.y -= 2;
-                }
-                rect.y++;
             }
         } else if (strcmp(key,"P") == 0) {
             if (isPaused) {
@@ -287,9 +361,9 @@ void handle_events(void) {
             playerPosition.x -= playerPosChange;
             rect.x -= playerPosChange;
             /* Ensure that if we went inside of a platform, move us back */
-            if (get_collision_type() & COLLISION_IS_TOUCHING_RIGHT) {
+            int theBadPlatform = colliding_platform(COLLISION_IS_TOUCHING_RIGHT,rect);
+            if (theBadPlatform != -1) {
                 SDL_Rect temp = {rect.x, rect.y};
-                int theBadPlatform = colliding_platform(COLLISION_IS_TOUCHING_RIGHT,temp);
                 while (get_collision_type_for_platform(theBadPlatform, temp) & COLLISION_IS_TOUCHING_RIGHT) {
                     playerPosition.x += 1;
                     temp.x++;
@@ -314,9 +388,9 @@ void handle_events(void) {
             playerPosition.x += playerPosChange;
             rect.x += playerPosChange;
             /* Ensure that if we went inside of a platform, move us back */
-            if (get_collision_type() & COLLISION_IS_TOUCHING_LEFT) {
+            int theBadPlatform = colliding_platform(COLLISION_IS_TOUCHING_LEFT,rect);
+            if (theBadPlatform != -1) {
                 SDL_Rect temp = {rect.x, rect.y};
-                int theBadPlatform = colliding_platform(COLLISION_IS_TOUCHING_LEFT,temp);
                 while (get_collision_type_for_platform(theBadPlatform, temp) & COLLISION_IS_TOUCHING_LEFT) {
                     playerPosition.x -= 1;
                     temp.x--;
@@ -332,17 +406,59 @@ void handle_events(void) {
     }
     if (keys[SDL_SCANCODE_UP]) {
         if (!isJumping) {
-            if (check_platform_collision()) {
-                isJumping = 1;
-                jump_sound();
+	    collision_type colType = get_collision_type();
+            if ((isGravityFlipped && (colType & COLLISION_IS_TOUCHING_DOWN)) || (!isGravityFlipped && (colType & COLLISION_IS_TOUCHING_UP)) || coyote) {
+                /* If player is both touching UP and DOWN, don't jump */
+                if (!((colType & COLLISION_IS_TOUCHING_UP) && (colType & COLLISION_IS_TOUCHING_DOWN))) {
+                    isJumping = 1;
+                    jump_sound();
+                }
+                coyote = 0; /* So you don't double-jump :P */
             }
         }
         if (isJumping) {
             if (!didHitMaxHeight) {
                 if (!isGravityFlipped) {
+#if I_WONDER_WHAT_WILL_HAPPEN
+                    /* TODO: This currently doesn't take the possibility of us jumping through two platforms into account, we should be save from that for now though... */
+                    /* cache the platform we're below */
+                    int preBelowPlatform = below_platform(rect);
                     rect.y -= (PLAYER_JUMP_VELOCITY_PLUS_GRAVITY - (0.3 * jumpHeight));
+                    /* check if we're below the same platform - if not, clip to it! */
+                    int postBelowPlatform = below_platform(rect);
+                    if (postBelowPlatform != preBelowPlatform) {
+                        /* Safety check if we failed to find platform */
+                        if (postBelowPlatform != -1) {
+                            /* Damn it Jack, we moved too far! Go back! */
+                            /* TODO: (BUG) Gravity is applied after... */
+                            rect.y = currentZoneDisplay[postBelowPlatform].y + currentZoneDisplay[postBelowPlatform].h;
+                            isJumping = 0;
+                            coyote = 0;
+                        }
+                    }
+#else
+                    rect.y -= (PLAYER_JUMP_VELOCITY_PLUS_GRAVITY - (0.3 * jumpHeight));
+#endif
                 } else {
+#if I_WONDER_WHAT_WILL_HAPPEN
+                    /* TODO: This currently doesn't take the possibility of us jumping through two platforms into account, we should be save from that for now though... */
+                    /* cache the platform we're above */
+                    int preAbovePlatform = above_platform(rect);
                     rect.y += (PLAYER_JUMP_VELOCITY_PLUS_GRAVITY - (0.3 * jumpHeight));
+                    /* check if we're above the same platform - if not, clip to it! */
+                    int postAbovePlatform = above_platform(rect);
+                    if (postAbovePlatform != preAbovePlatform) {
+                        /* Safety check if we failed to find platform */
+                        if (postAbovePlatform != -1) {
+                            /* Damn it Jack, we moved too far! Go back! */
+                            rect.y = currentZoneDisplay[postAbovePlatform].y - PLAYER_HEIGHT;
+                            isJumping = 0;
+                            coyote = 0;
+                        }
+                    }
+#else
+                    rect.y += (PLAYER_JUMP_VELOCITY_PLUS_GRAVITY - (0.3 * jumpHeight));
+#endif
                 }
                 jumpHeight += (PLAYER_JUMP_VELOCITY - jumpHeight/4);
                 if (jumpHeight >= PLAYER_JUMP_MAX_HEIGHT) {
@@ -352,7 +468,9 @@ void handle_events(void) {
         }
     } else {
         /* If player lets go of jump mid-jump, then make it so that that will be the height of their jump and even if they hold up again before they touch the ground they cannot jump again till they touch the ground */
-        didHitMaxHeight = 1;
+        if (!coyote) {
+            didHitMaxHeight = 1;
+        }
     }
 }
 
@@ -360,7 +478,16 @@ void update(void) {
     /* Screen scrolling */
     screen_scrolling();
 
-    int collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP | COLLISION_IS_TOUCHING_DOWN, rect);
+    #if I_WONDER_WHAT_WILL_HAPPEN
+    collision_type collidingPlatform;
+    if (isGravityFlipped) {
+        collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_DOWN, rect);
+    } else {
+        collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP, rect);
+    }
+    #else
+    collision_type collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP | COLLISION_IS_TOUCHING_DOWN, rect);
+    #endif
 
     /* Check for collisions with platform */
     if (collidingPlatform == -1) {
@@ -377,31 +504,56 @@ void update(void) {
         if (gravity <= GRAVITY_MAX) {
             gravity++;
         }
-        collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP | COLLISION_IS_TOUCHING_DOWN, rect);
+        #if I_WONDER_WHAT_WILL_HAPPEN
+        if (isGravityFlipped) {
+            collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_DOWN, rect);
+        } else {
+            collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP, rect);
+        }
+        #else
+            collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP | COLLISION_IS_TOUCHING_DOWN, rect);
+        #endif
     }
 
     /* this cannot be part of the else above bc we want to do this before render */
     if (collidingPlatform != -1) {
         /* If touching ground, not jumping currently!! */
+        collision_type colType = get_collision_type_for_platform(collidingPlatform, rect);
         isJumping = 0;
         didHitMaxHeight = 0;
         jumpHeight = 0;
         gravity = GRAVITY - 3;
+        coyote = COYOTE_MAX;
         /* if this is -1 then we KNOW col is COLLISION_IS_TOUCHING_DOWN instead */
-        if (get_collision_type_for_platform(collidingPlatform, rect) & COLLISION_IS_TOUCHING_UP) {
+        if (colType & COLLISION_IS_TOUCHING_UP) {
             /* clip to top of the platform */
             if (!isGravityFlipped) {
                 rect.y = currentZoneDisplay[collidingPlatform].y - PLAYER_HEIGHT;
             } else {
+            #if I_WONDER_WHAT_WILL_HAPPEN
+                rect.y = currentZoneDisplay[collidingPlatform].y - PLAYER_HEIGHT;
+            #else
                 rect.y = currentZoneDisplay[collidingPlatform].y - PLAYER_HEIGHT - 1;
+            #endif
             }
         } else {
             /* clip to down of the platform */
             if (isGravityFlipped) {
                 rect.y = currentZoneDisplay[collidingPlatform].y + currentZoneDisplay[collidingPlatform].h;
             } else {
+            #if I_WONDER_WHAT_WILL_HAPPEN
+                rect.y = currentZoneDisplay[collidingPlatform].y + currentZoneDisplay[collidingPlatform].h;
+            #else
                 rect.y = currentZoneDisplay[collidingPlatform].y + currentZoneDisplay[collidingPlatform].h + 1;
+            #endif
             }
+        }
+    }
+
+    /* coyote timer */
+    if (coyote != 0) {
+        if (!isJumping) {
+            coyote--;
         }
     }
 }
@@ -412,7 +564,6 @@ void render(void) {
     SDL_RenderCopy(rend, backgroundTex, NULL, &background);
 
     /* Draw platform */
-    SDL_SetRenderDrawColor(rend, WHITE_COLOR.r, WHITE_COLOR.g, WHITE_COLOR.b, WHITE_COLOR.a);
     SDL_RenderFillRects(rend, currentZoneDisplay, platformCount);
 
     /* Gimme da image! */
@@ -510,6 +661,8 @@ int main(int argc,  char** argv) {
 
 	/* play bg music */
 	play_music(resourcesPath);
+
+	SDL_SetRenderDrawColor(rend, WHITE_COLOR.r, WHITE_COLOR.g, WHITE_COLOR.b, WHITE_COLOR.a);
 
 	while (running) {
 		/* Handle events */

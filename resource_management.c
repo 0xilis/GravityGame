@@ -42,12 +42,11 @@ char *find_resource(char* resource) {
   /* Copy resourcesPath to newResourcesPath */
   for (int i = 0; i < resPathLen; i++) {
     newResourcesPath[i] = resourcesPath[i];
-    newResourcesPath[i+1] = '\0';
   }
   /* Copy resource to newResourcesPath */
   for (int i = 0; i < resLen; i++) {
     newResourcesPath[i+resPathLen] = resource[i];
-    newResourcesPath[i+resPathLen+1] = '\0';
   }
+  newResourcesPath[resPathLen+resLen] = '\0';
   return newResourcesPath;
 }
