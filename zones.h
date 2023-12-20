@@ -23,5 +23,6 @@ SDL_Rect *currentZone;
 void load_test_zone();
 int platformsInCurrentZone();
 SDL_Rect * load_level_as_full_zone(const char *restrict filename);
+SDL_Rect * load_level_as_full_zone_display(const char *restrict filename, SDL_Rect **display);
 
 #endif //ZONES_H

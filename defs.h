@@ -42,6 +42,5 @@ typedef struct {
 #define COLLISION_IS_TOUCHING_RIGHT 8
 #define COLLISION_IS_TOUCHING_ANY 15 /* 1 | 2 | 4 | 8 = 15 */
 #define COLLISION_NOT_FOUND 0
-#define collision_type int
 
 #endif //DEFS_H

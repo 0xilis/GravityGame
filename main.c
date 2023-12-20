@@ -19,6 +19,7 @@
 #include "zones.h"
 #include "resource_management.h"
 #include <limits.h>
+#include "collision.h"
 
 #include "defs.h"
 
@@ -29,13 +30,11 @@
 
 /* Global variables */
 SDL_Renderer* rend;
-#define STARTING_PLATFORM_HEIGHT 200
-SDL_Rect rect = {SCREEN_WIDTH/2 - PLAYER_WIDTH/2, SCREEN_HEIGHT - STARTING_PLATFORM_HEIGHT - PLAYER_HEIGHT, PLAYER_WIDTH, PLAYER_HEIGHT};
 SDL_Rect background = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
 int running = 1;
-int platformCount;
 int isPaused = 0;
 SDL_Rect pendingRect = {0, 0, 0, 0};
+SDL_Rect pendingRectDisplay = {0, 0, 0, 0};
 int awaitingNextRect = 0;
 
 /* Textures */
@@ -46,205 +45,10 @@ PlayerPos playerPosition;
 
 /* Collision */
 
-#define I_WONDER_WHAT_WILL_HAPPEN 1
 #define HACKY_WORKAROUND_FOR_COLLISION_BUG 1 /* TODO: Support other gravity as well */
 
 #define COYOTE_MAX 5
 int coyote = 0;
-
-int check_platform_collision(void) {
-    /* Check for collisions with platform */
-    for (int i = 0; i < platformCount; i++) {
-        if (rect.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y && rect.x + PLAYER_WIDTH > currentZoneDisplay[i].x && rect.x < currentZoneDisplay[i].x + currentZone[i].w && rect.y <= (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) {
-	    return 1;
-        }
-    }
-    return 0;
-}
-
-int colliding_platform(collision_type collidingWithType, SDL_Rect obj) {
-    /* Initialize our returnCollisionType variable */
-    collision_type returnCollisionType = COLLISION_NOT_FOUND;
-
-    /* Get collision type for platform */
-    for (int i = 0; i < platformCount; i++) {
-        /* Ensure we are on the same y level as the block */
-        if ((obj.y <= (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) && (obj.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y)) {
-            /* Up / Down collisions */
-            if (obj.x + PLAYER_WIDTH > currentZoneDisplay[i].x && obj.x < currentZoneDisplay[i].x + currentZone[i].w) {
-                if ((obj.y + (obj.h / 2)) < (currentZoneDisplay[i].y + (currentZoneDisplay[i].h / 2))) {
-	            returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_UP);
-                } else {
-                    returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_DOWN);
-                }
-            }
-            if ((obj.y != (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) && (obj.y + PLAYER_HEIGHT != currentZoneDisplay[i].y)) {
-                /* Left / Right collisions */
-                /* Check for Left Collision */
-                if (obj.x + PLAYER_WIDTH >= currentZoneDisplay[i].x && obj.x < currentZoneDisplay[i].x) {
-                    returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_LEFT);
-                }
-                /* Check for Right Collision */
-                if (obj.x + PLAYER_WIDTH > (currentZoneDisplay[i].x + currentZoneDisplay[i].w) && obj.x <= (currentZoneDisplay[i].x + currentZoneDisplay[i].w)) {
-                    returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_RIGHT);
-                }
-            }
-        }
-        if (returnCollisionType & collidingWithType) {
-            return i;
-        }
-    }
-    return -1;
-}
-
-collision_type get_collision_type(void) {
-    /* TODO:
-     * This function has a bad bug regarding logic.
-     * Basically, while it correctly can store both LEFT and RIGHT
-     * (assuming the player is colliding with both directions)
-     * However, the same is *NOT* currently true for UP and DOWN
-     * So if player collides with both up and down at once, BAD!
-     * Fix this latr.
-     * NEVERMIND - Actually this is not as bad as I thought
-     * Seems like it can only not correctly detect UP/DOWN
-     * on one platform (and a player will never both be colliding
-     * with the same platform in both directions at once.)
-     * So hopefully I can forget about this bug.
-    */
-
-    /* Initialize our returnCollisionType variable */
-    collision_type returnCollisionType = COLLISION_NOT_FOUND;
-
-    /* Get collision type for platform */
-    for (int i = 0; i < platformCount; i++) {
-        /* Ensure we are on the same y level as the block */
-        if ((rect.y <= (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) && (rect.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y)) {
-            /* Up / Down collisions */
-            if (rect.x + PLAYER_WIDTH > currentZoneDisplay[i].x && rect.x < currentZoneDisplay[i].x + currentZone[i].w) {
-                if ((rect.y + (rect.h / 2)) < (currentZoneDisplay[i].y + (currentZoneDisplay[i].h / 2))) {
-	            returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_UP);
-                } else {
-                    returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_DOWN);
-                }
-            }
-            /* Left / Right collisions */
-            if ((rect.y != (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) && (rect.y + PLAYER_HEIGHT != currentZoneDisplay[i].y)) {
-                /* Check for Left Collision */
-                if (rect.x + PLAYER_WIDTH >= currentZoneDisplay[i].x && rect.x < currentZoneDisplay[i].x) {
-                    returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_LEFT);
-                }
-                /* Check for Right Collision */
-                if (rect.x + PLAYER_WIDTH > (currentZoneDisplay[i].x + currentZoneDisplay[i].w) && rect.x <= (currentZoneDisplay[i].x + currentZoneDisplay[i].w)) {
-                    returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_RIGHT);
-                }
-            }
-        }
-    }
-    return returnCollisionType;
-}
-
-collision_type get_collision_type_for_platform(int platformIndex, SDL_Rect obj) {
-    /* Make sure platformIndex exists before calling function */
-
-    /* Initialize our returnCollisionType variable */
-    collision_type returnCollisionType = COLLISION_NOT_FOUND;
-
-    /* Ensure we are on the same y level as the block */
-    if (obj.y <= (currentZoneDisplay[platformIndex].y + currentZoneDisplay[platformIndex].h) && obj.y + PLAYER_HEIGHT >= currentZoneDisplay[platformIndex].y) {
-        /* Up / Down collisions */
-        if (obj.x + PLAYER_WIDTH > currentZoneDisplay[platformIndex].x && obj.x < currentZoneDisplay[platformIndex].x + currentZone[platformIndex].w) {
-            if (obj.y + (obj.h / 2) < currentZoneDisplay[platformIndex].y + (currentZoneDisplay[platformIndex].h / 2)) {
-                returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_UP);
-            } else {
-                returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_DOWN);
-            }
-        }
-        /* Left / Right collisions */
-        if ((obj.y != (currentZoneDisplay[platformIndex].y + currentZoneDisplay[platformIndex].h)) && (obj.y + PLAYER_HEIGHT != currentZoneDisplay[platformIndex].y)) {
-            /* Check for Left Collision */
-            if (obj.x + PLAYER_WIDTH >= currentZoneDisplay[platformIndex].x && obj.x < currentZoneDisplay[platformIndex].x) {
-                returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_LEFT);
-            }
-            /* Check for Right Collision */
-            if (obj.x + PLAYER_WIDTH > (currentZoneDisplay[platformIndex].x + currentZoneDisplay[platformIndex].w) && obj.x <= (currentZoneDisplay[platformIndex].x + currentZoneDisplay[platformIndex].w)) {
-                returnCollisionType = (returnCollisionType | COLLISION_IS_TOUCHING_RIGHT);
-            }
-        }
-    }
-    return returnCollisionType;
-}
-
-/* Returns below platform */
-int below_platform(SDL_Rect obj) {
-    /* Initialize our returnBelowPlatform variable */
-    int returnBelowPlatform = -1;
-    if (!currentZoneDisplay) {
-        /* ERROR! No platforms?? */
-        return -1;
-        
-    }
-    int yOfLastBelowPlatform = INT_MAX;
-
-    /* Get bottom of player */
-    //int playerBottom = (obj.y + PLAYER_HEIGHT);
-
-    /* Get collision type for platform */
-    for (int i = 0; i < platformCount; i++) {
-        /* Ensure we are on the same x level as the block */
-        if (obj.x + PLAYER_WIDTH > currentZoneDisplay[i].x && obj.x < currentZoneDisplay[i].x + currentZone[i].w) {
-#if HACKY_WORKAROUND_FOR_COLLISION_BUG
-            if ((currentZoneDisplay[i].y + currentZoneDisplay[i].h) > (obj.y + 2)) {
-#else
-            if ((currentZoneDisplay[i].y + currentZoneDisplay[i].h) > obj.y) {
-#endif
-                /* Make sure this platform is above the last platform we checked */
-                if (currentZoneDisplay[i].y < yOfLastBelowPlatform) {
-                    yOfLastBelowPlatform = currentZoneDisplay[i].y;
-                    returnBelowPlatform = i;
-                }
-            } else {
-#if 0
-                /* Check for UP/DOWN collision */
-                if (obj.y <= (currentZoneDisplay[i].y + currentZoneDisplay[i].h) && obj.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y) {
-                    /* Colliding!!! Return */
-                    return i;
-                }
-#endif
-                //return returnBelowPlatform; 
-            }
-        }
-    }
-    return returnBelowPlatform;
-}
-
-/* Returns above platform, reverse of below_platform */
-int above_platform(SDL_Rect obj) {
-    /* Initialize our returnBelowPlatform variable */
-    int returnAbovePlatform = -1;
-    int yOfLastAbovePlatform = INT_MIN;
-
-    /* Get bottom of player */
-#if HACKY_WORKAROUND_FOR_COLLISION_BUG
-    int playerBottom = (obj.y + PLAYER_HEIGHT) - 2;
-#else
-    int playerBottom = (obj.y + PLAYER_HEIGHT);
-#endif
-
-    /* Get collision type for platform */
-    for (int i = 0; i < platformCount; i++) {
-        /* Ensure we are on the same x level as the block */
-        if (obj.x + PLAYER_WIDTH > currentZoneDisplay[i].x && obj.x < currentZoneDisplay[i].x + currentZone[i].w) {
-            if (currentZoneDisplay[i].y < playerBottom) {
-                /* Make sure this platform is above the last platform we checked */
-                if (currentZoneDisplay[i].y > yOfLastAbovePlatform) {
-                    yOfLastAbovePlatform = currentZoneDisplay[i].y;
-                    returnAbovePlatform = i;
-                }
-            }
-        }
-    }
-    return returnAbovePlatform;
-}
 
 int didHitMaxHeight = 0;
 int isJumping = 0;
@@ -324,6 +128,7 @@ void handle_events(void) {
                     pause_audio();
                     isPaused = 1;
                 }
+                pendingRectDisplay = pendingRect;
             }
         } else if (event.button.button == SDL_BUTTON_RIGHT) {
             printf("Right click at (%d, %d)\n", event.button.x, event.button.y);
@@ -342,9 +147,31 @@ void handle_events(void) {
             }
         }
     }
+    /* Preview block place */
+    if (awaitingNextRect) {
+        int mouseX, mouseY;
+        SDL_GetMouseState(&mouseX, &mouseY);
+        pendingRectDisplay.w = mouseX - pendingRect.x + playerPosition.x;
+        /* If negative width, o shit, we messed up, let's patch this up */
+        if (pendingRectDisplay.w < 0) {
+            pendingRectDisplay.x = pendingRect.x + pendingRectDisplay.w;
+            pendingRectDisplay.w *= -1;
+        } else {
+            pendingRectDisplay.x = pendingRect.x;
+        }
+        pendingRectDisplay.h = mouseY - pendingRect.y;
+        /* If negative height, o shit, we messed up, let's patch this up */
+        if (pendingRectDisplay.h < 0) {
+            pendingRectDisplay.y = pendingRect.y + pendingRectDisplay.h;
+            pendingRectDisplay.h *= -1;
+        } else {
+            pendingRectDisplay.y = pendingRect.y;
+        }
+    }
     if (isPaused) {
         return;
     }
+
     /* Key presses */
     const Uint8 *keys = SDL_GetKeyboardState(NULL);
 
@@ -419,7 +246,6 @@ void handle_events(void) {
         if (isJumping) {
             if (!didHitMaxHeight) {
                 if (!isGravityFlipped) {
-#if I_WONDER_WHAT_WILL_HAPPEN
                     /* TODO: This currently doesn't take the possibility of us jumping through two platforms into account, we should be save from that for now though... */
                     /* cache the platform we're below */
                     int preBelowPlatform = below_platform(rect);
@@ -436,11 +262,7 @@ void handle_events(void) {
                             coyote = 0;
                         }
                     }
-#else
-                    rect.y -= (PLAYER_JUMP_VELOCITY_PLUS_GRAVITY - (0.3 * jumpHeight));
-#endif
                 } else {
-#if I_WONDER_WHAT_WILL_HAPPEN
                     /* TODO: This currently doesn't take the possibility of us jumping through two platforms into account, we should be save from that for now though... */
                     /* cache the platform we're above */
                     int preAbovePlatform = above_platform(rect);
@@ -456,9 +278,6 @@ void handle_events(void) {
                             coyote = 0;
                         }
                     }
-#else
-                    rect.y += (PLAYER_JUMP_VELOCITY_PLUS_GRAVITY - (0.3 * jumpHeight));
-#endif
                 }
                 jumpHeight += (PLAYER_JUMP_VELOCITY - jumpHeight/4);
                 if (jumpHeight >= PLAYER_JUMP_MAX_HEIGHT) {
@@ -478,16 +297,12 @@ void update(void) {
     /* Screen scrolling */
     screen_scrolling();
 
-    #if I_WONDER_WHAT_WILL_HAPPEN
     collision_type collidingPlatform;
     if (isGravityFlipped) {
         collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_DOWN, rect);
     } else {
         collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP, rect);
     }
-    #else
-    collision_type collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP | COLLISION_IS_TOUCHING_DOWN, rect);
-    #endif
 
     /* Check for collisions with platform */
     if (collidingPlatform == -1) {
@@ -504,15 +319,11 @@ void update(void) {
         if (gravity <= GRAVITY_MAX) {
             gravity++;
         }
-        #if I_WONDER_WHAT_WILL_HAPPEN
         if (isGravityFlipped) {
             collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_DOWN, rect);
         } else {
             collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP, rect);
         }
-        #else
-            collidingPlatform = colliding_platform(COLLISION_IS_TOUCHING_UP | COLLISION_IS_TOUCHING_DOWN, rect);
-        #endif
     }
 
     /* this cannot be part of the else above bc we want to do this before render */
@@ -527,26 +338,10 @@ void update(void) {
         /* if this is -1 then we KNOW col is COLLISION_IS_TOUCHING_DOWN instead */
         if (colType & COLLISION_IS_TOUCHING_UP) {
             /* clip to top of the platform */
-            if (!isGravityFlipped) {
-                rect.y = currentZoneDisplay[collidingPlatform].y - PLAYER_HEIGHT;
-            } else {
-            #if I_WONDER_WHAT_WILL_HAPPEN
-                rect.y = currentZoneDisplay[collidingPlatform].y - PLAYER_HEIGHT;
-            #else
-                rect.y = currentZoneDisplay[collidingPlatform].y - PLAYER_HEIGHT - 1;
-            #endif
-            }
+            rect.y = currentZoneDisplay[collidingPlatform].y - PLAYER_HEIGHT;
         } else {
             /* clip to down of the platform */
-            if (isGravityFlipped) {
-                rect.y = currentZoneDisplay[collidingPlatform].y + currentZoneDisplay[collidingPlatform].h;
-            } else {
-            #if I_WONDER_WHAT_WILL_HAPPEN
-                rect.y = currentZoneDisplay[collidingPlatform].y + currentZoneDisplay[collidingPlatform].h;
-            #else
-                rect.y = currentZoneDisplay[collidingPlatform].y + currentZoneDisplay[collidingPlatform].h + 1;
-            #endif
-            }
+            rect.y = currentZoneDisplay[collidingPlatform].y + currentZoneDisplay[collidingPlatform].h;
         }
     }
 
@@ -564,7 +359,15 @@ void render(void) {
     SDL_RenderCopy(rend, backgroundTex, NULL, &background);
 
     /* Draw platform */
+    SDL_SetRenderDrawColor(rend, WHITE_COLOR.r, WHITE_COLOR.g, WHITE_COLOR.b, WHITE_COLOR.a);
     SDL_RenderFillRects(rend, currentZoneDisplay, platformCount);
+
+    /* If awaiting platform, draw pending rect */
+    if (awaitingNextRect) {
+        SDL_SetRenderDrawBlendMode(rend, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(rend, PURPLE_COLOR.r, PURPLE_COLOR.g, PURPLE_COLOR.b, 100);
+        SDL_RenderFillRect(rend, &pendingRectDisplay);
+    }
 
     /* Gimme da image! */
     SDL_RenderCopy(rend, tex, NULL, &rect);
@@ -595,8 +398,7 @@ int main(int argc,  char** argv) {
 
 	/* load test zone into currentZone */
 	char *resource = find_resource("level.json");
-	currentZone = load_level_as_full_zone(resource);
-	currentZoneDisplay = load_level_as_full_zone(resource);
+	currentZone = load_level_as_full_zone_display(resource, &currentZoneDisplay);
 	free(resource);
 	resource = NULL;
 	platformCount = platformsInCurrentZone();
