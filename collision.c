@@ -34,10 +34,11 @@ int check_platform_collision(void) {
 
 int colliding_platform(collision_type collidingWithType, SDL_Rect obj) {
     /* Initialize our returnCollisionType variable */
-    collision_type returnCollisionType = COLLISION_NOT_FOUND;
+    collision_type returnCollisionType;
 
     /* Get collision type for platform */
     for (int i = 0; i < platformCount; i++) {
+        returnCollisionType = COLLISION_NOT_FOUND;
         /* Ensure we are on the same y level as the block */
         if ((obj.y <= (currentZoneDisplay[i].y + currentZoneDisplay[i].h)) && (obj.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y)) {
             /* Up / Down collisions */

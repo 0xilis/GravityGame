@@ -1,3 +1,7 @@
+BUILD 007-2 CHANGES:
+
+- Fixed colliding_platform preserving the colType of other platforms
+
 BUILD 007-1 CHANGES:
 
 - Optimized some stuff
