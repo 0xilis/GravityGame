@@ -41,5 +41,13 @@ collision_type get_collision_type(void);
 collision_type get_collision_type_for_platform(int platformIndex, SDL_Rect obj);
 int below_platform(SDL_Rect obj);
 int above_platform(SDL_Rect obj);
+int below_platform_nointersect(SDL_Rect obj);
+int above_platform_nointersect(SDL_Rect obj);
+int below_platform_at_index(int platformIndex, SDL_Rect obj);
+int above_platform_at_index(int platformIndex, SDL_Rect obj);
+
+/* Collision */
+#define HACKY_WORKAROUND_FOR_COLLISION_BUG 1
+#define COYOTE_MAX 5
 
 #endif //COLLISION_H

@@ -1,3 +1,10 @@
+BUILD 007-1 CHANGES:
+
+- Optimized some stuff
+- With the optimizations to collision clipping for jumps, it also fixes if a player were to jump through two platforms
+- With the coyote timer optimization, it also fixed COYOTE_MAX being +1 above what it should be as it immediately gets subtracted by 1
+- Fixed pending rect position sometimes being weird
+
 BUILD 007 CHANGES:
 
 - Improved collision logic

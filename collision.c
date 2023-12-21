@@ -172,15 +172,6 @@ int below_platform(SDL_Rect obj) {
                     yOfLastBelowPlatform = currentZoneDisplay[i].y;
                     returnBelowPlatform = i;
                 }
-            } else {
-#if 0
-                /* Check for UP/DOWN collision */
-                if (obj.y <= (currentZoneDisplay[i].y + currentZoneDisplay[i].h) && obj.y + PLAYER_HEIGHT >= currentZoneDisplay[i].y) {
-                    /* Colliding!!! Return */
-                    return i;
-                }
-#endif
-                //return returnBelowPlatform; 
             }
         }
     }
@@ -214,4 +205,103 @@ int above_platform(SDL_Rect obj) {
         }
     }
     return returnAbovePlatform;
+}
+
+/* 
+ * If the player is partly in a platform somehow, below_platform detects
+ * that platform as below the player. below_platform_nointersect is below_platform
+ * but without this. Be aware that if a player is fully in a platform however,
+ * below_platform_nointersect *will* detect the platform as below.
+*/
+int below_platform_nointersect(SDL_Rect obj) {
+    /* Initialize our returnBelowPlatform variable */
+    int returnBelowPlatform = -1;
+    int yOfLastBelowPlatform = INT_MAX;
+
+    /* Get collision type for platform */
+    for (int i = 0; i < platformCount; i++) {
+        /* Ensure we are on the same x level as the block */
+        if (obj.x + PLAYER_WIDTH > currentZoneDisplay[i].x && obj.x < currentZoneDisplay[i].x + currentZone[i].w) {
+#if HACKY_WORKAROUND_FOR_COLLISION_BUG
+            if (currentZoneDisplay[i].y > (obj.y + 2)) {
+#else
+            if (currentZoneDisplay[i].y > obj.y) {
+#endif
+                /* Make sure this platform is above the last platform we checked */
+                if (currentZoneDisplay[i].y < yOfLastBelowPlatform) {
+                    yOfLastBelowPlatform = currentZoneDisplay[i].y;
+                    returnBelowPlatform = i;
+                }
+            }
+        }
+    }
+    return returnBelowPlatform;
+}
+
+/* 
+ * If the player is partly in a platform somehow, above_platform detects
+ * that platform as above the player. above_platform_nointersect is above_platform
+ * but without this. Be aware that if a player is fully in a platform however,
+ * above_platform_nointersect *will* detect the platform as above.
+*/
+int above_platform_nointersect(SDL_Rect obj) {
+    /* Initialize our returnBelowPlatform variable */
+    int returnAbovePlatform = -1;
+    int yOfLastAbovePlatform = INT_MIN;
+
+    /* Get bottom of player */
+#if HACKY_WORKAROUND_FOR_COLLISION_BUG
+    int playerBottom = obj.y - 2;
+#else
+    int playerBottom = obj.y;
+#endif
+
+    /* Get collision type for platform */
+    for (int i = 0; i < platformCount; i++) {
+        /* Ensure we are on the same x level as the block */
+        if (obj.x + PLAYER_WIDTH > currentZoneDisplay[i].x && obj.x < currentZoneDisplay[i].x + currentZone[i].w) {
+            if (currentZoneDisplay[i].y < playerBottom) {
+                /* Make sure this platform is above the last platform we checked */
+                if (currentZoneDisplay[i].y > yOfLastAbovePlatform) {
+                    yOfLastAbovePlatform = currentZoneDisplay[i].y;
+                    returnAbovePlatform = i;
+                }
+            }
+        }
+    }
+    return returnAbovePlatform;
+}
+
+/*
+ * Returns below platform at index.
+ * Unlike below_platform, this function does not check the x of the platform, only the y.
+*/
+int below_platform_at_index(int platformIndex, SDL_Rect obj) {
+    SDL_Rect platform = currentZoneDisplay[platformIndex];
+#if HACKY_WORKAROUND_FOR_COLLISION_BUG
+    if ((platform.y + platform.h) > (obj.y + 2)) {
+#else
+    if ((platform.y + platform.h) > obj.y) {
+#endif
+        return 1; /* We're below the platform, return 1 */
+    }
+    return 0;
+}
+
+/*
+ * Returns above platform at index.
+ * Unlike above_platform, this function does not check the x of the platform, only the y.
+*/
+int above_platform_at_index(int platformIndex, SDL_Rect obj) {
+    SDL_Rect platform = currentZoneDisplay[platformIndex];
+    /* Get bottom of player */
+#if HACKY_WORKAROUND_FOR_COLLISION_BUG
+    int playerBottom = (obj.y + PLAYER_HEIGHT) - 2;
+#else
+    int playerBottom = (obj.y + PLAYER_HEIGHT);
+#endif
+    if (platform.y < playerBottom) {
+        return 1; /* We're above the platform, return 1 */
+    }
+    return 0;
 }
