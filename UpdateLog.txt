@@ -1,3 +1,15 @@
+BUILD 008 CHANGES:
+
+- Physics have been improved! I asked Nara some way they can be better and I followed advice.
+- SeaJSON updated from build 15 to 18
+- Now can load beautified json levels!
+- 200 tick jump cooldown reduced to 100 tick
+- Cleanup project organization, plus a new Makefile!
+- Widescreen!
+- Linux Support! Tested on Arch Linux :3
+- Character changed to Trick
+(I really tried to get controller support on this but sadly I cannot for now, I'll try later...)
+
 BUILD 007-2 CHANGES:
 
 - Fixed colliding_platform preserving the colType of other platforms
