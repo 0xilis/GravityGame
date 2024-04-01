@@ -1,0 +1,36 @@
+/* Believe it or not, if we just place only text on a line, Yoyo prints it out! */
+"Hello World"
+/* This is how we should properly handle it however, by calling .log()... */
+"Hello World".log()
+/* We could also put it inside our print function, like so: */
+print("Hello World")
+/* Or, wanna see something extra funky? */
+print: "Hello World"
+/* Now, demo variables... */
+/* Yoyo features a generic var type called var. */
+var generic_zero = 0
+/* If you put it like this, yoyo will automatically assume that var is a signed int */
+/* Like this... */
+var generic_string = "A String"
+/* Yoyo assumes it's a string */
+/* You could manually specify a string via: */
+string manual_string = "A String"
+/*
+ * Strings in yoyo are incredibly unique, as they
+ * are the only yoyo type that's not a plain ctype,
+ * rather they call internal functions that are
+ * defined in "yoyo_internal.h" for handling.
+*/
+/* However, generic types can be annoying, and it's recommended to use ctypes */
+/* This is proper yoyo code: */
+int good_zero = 0
+/* We *can* also end a line using ;, but unlike C, this is optional! */
+good_zero++
+good_zero++;
+good_zero++
+/*
+ * In yoyo, you can define a function as "echo" which is similar to void,
+ * except you alert that it will output the input. Ex .log() is echo, so
+ * stuff like "Hello World".log() will output "Hello World" as a var!
+*/
+
