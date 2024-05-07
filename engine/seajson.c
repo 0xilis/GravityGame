@@ -34,6 +34,16 @@ seajson init_json_from_file(const char *restrict filename) {
     fprintf(stderr, "SeaJSON Error: Memory allocation failed.\n");
     exit(1);
   }
+  /*
+   * Fix for potential race that would
+   * result in SeaJSON disclosing
+   * memory to another process,
+   * as file file can change
+   * in between and make buffer allocated
+   * with more memory than it should and
+   * having leftover bytes.
+  */
+  memset(json, 0, sizeof(char) * (sz + 1))
   size_t bytesRead = fread(json, 1, sz, fp);
   if (bytesRead < sz) {
     fclose(fp);
@@ -644,7 +654,7 @@ jarray add_item_to_jarray(jarray array, char* item) {
  * need to add an item to a json, as it
  * is faster than using set_string_seajson().
  */
-seajson add_string_seajson(seajson json, const char* key, const char *value) {
+seajson add_string_seajson(seajson json, char* key, char *value) {
   unsigned long jsonLen = strlen(json);
   unsigned long keyLen = strlen(key);
   unsigned long valueLen = strlen(value);
@@ -675,7 +685,7 @@ seajson add_string_seajson(seajson json, const char* key, const char *value) {
  * need to add an item to a json, as it
  * is faster than using set_item_seajson().
  */
-seajson add_item_seajson(seajson json, const char* key, const char *value) {
+seajson add_item_seajson(seajson json, char* key, char *value) {
   unsigned long jsonLen = strlen(json);
   unsigned long keyLen = strlen(key);
   unsigned long valueLen = strlen(value);
@@ -1178,5 +1188,5 @@ char * getstring(char *funckey, char *dict) {
 
 /* Just a function to return SeaJSON build version in case a program ever needs to check */
 int seaJSONBuildVersion(void) {
-  return 18;
+  return 19;
 }
