@@ -120,7 +120,7 @@ void handle_events(void) {
     } else if (event.type == SDL_KEYDOWN) {
         const char *keyPtr = SDL_GetKeyName(event.key.keysym.sym);
 	char key = NULL;
-	if (key) {
+	if (keyPtr) {
             key = *(char *)keyPtr;
 	}
         if (key == 'Z') {
