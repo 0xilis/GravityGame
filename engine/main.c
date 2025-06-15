@@ -118,8 +118,12 @@ void handle_events(void) {
     if (event.type == SDL_QUIT) {
         running = 0;
     } else if (event.type == SDL_KEYDOWN) {
-        const char *key = SDL_GetKeyName(event.key.keysym.sym);
-        if (strcmp(key,"Z") == 0) {
+        const char *keyPtr = SDL_GetKeyName(event.key.keysym.sym);
+	char key = NULL;
+	if (key) {
+            key = *(char *)keyPtr;
+	}
+        if (key == 'Z') {
             if (!isPaused) {
                 /* Flip Gravity */
                 isGravityFlipped = !isGravityFlipped;
@@ -127,7 +131,7 @@ void handle_events(void) {
                 /* Stop player from jumping higher */
                 didHitMaxHeight = 1;
             }
-        } else if (strcmp(key,"P") == 0) {
+        } else if (key == 'P') {
             if (isPaused) {
                 /* Un-pause the game */
                 isPaused = 0;
